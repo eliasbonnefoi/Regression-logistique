@@ -72,7 +72,7 @@ def gradient_objectif(vraies_classes, predictions, entrees):
     return dw, db
 
 
-def phi(X):
+def augment_features(X):
     x1_c = X[0:1, :] - X[0].mean()
     x2_c = X[1:2, :] - X[1].mean()
     r2 = x1_c**2 + x2_c**2
@@ -87,11 +87,8 @@ dataset = loadmat("data/reglog_data_1.mat")
 X = dataset["X"]
 C = dataset["C"]
 
-mu1 = X.mean(axis=1, keepdims=True)
-sigma1 = X.std(axis=1, keepdims=True)
-X_n = (X - mu1) / sigma1
-
 plotdata(X, C)
+plotdata(X, C, w=np.ones(2), b=-20)
 
 np.random.seed(42)
 w_test, b_test = init()
@@ -101,92 +98,42 @@ print("Objectif:", objectif(pred_test, C))
 dw_test, db_test = gradient_objectif(C, pred_test, X)
 print("dw shape:", dw_test.shape, "db:", db_test)
 
-np.random.seed(0)
-w, b = init()
+mu1 = X.mean(axis=1, keepdims=True)
+sigma1 = X.std(axis=1, keepdims=True)
+X_n = (X - mu1) / sigma1
 
-lr = 0.01
-n_iter = 100
-pertes = []
-taux_erreur = []
-
-for i in range(n_iter):
-    pred = inference(X_n, w, b)
-    pertes.append(objectif(pred, C))
-    pred_classe = (pred >= 0.5).astype(int)
-    taux_erreur.append(np.mean(pred_classe != C))
-    dw, db = gradient_objectif(C, pred, X_n)
-    w = w - lr * dw
-    b = b - lr * db
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-axes[0].plot(pertes)
-axes[0].set_xlabel('Itération')
-axes[0].set_ylabel('NLL')
-axes[0].set_title('Fonction de coût')
-axes[0].grid()
-
-axes[1].plot(taux_erreur)
-axes[1].set_xlabel('Itération')
-axes[1].set_ylabel("Taux d'erreur")
-axes[1].set_title("Taux d'erreur de classification")
-axes[1].grid()
-plt.tight_layout()
-plt.show()
-
-print(f"Perte finale : {pertes[-1]:.4f}")
-print(f"Taux d'erreur final : {taux_erreur[-1]*100:.2f}%")
-
-w_orig = w / sigma1.T
-b_orig = float(b) - float(np.dot(w_orig.flatten(), mu1.flatten()))
-plotdata(X, C, w=w_orig.squeeze(), b=b_orig)
-
-for lr_test in [0.01, 0.1, 0.5]:
+for n_iter in (100, 1000, 10000):
     np.random.seed(0)
     w, b = init()
-    pertes_t = []
-    taux_t = []
-    for i in range(1000):
+    lr = 0.1
+    pertes, taux_erreur = [], []
+
+    for i in range(n_iter):
         pred = inference(X_n, w, b)
-        pertes_t.append(objectif(pred, C))
-        taux_t.append(np.mean((pred >= 0.5).astype(int) != C))
+        pertes.append(objectif(pred, C))
+        taux_erreur.append(np.mean((pred >= 0.5).astype(int) != C))
         dw, db = gradient_objectif(C, pred, X_n)
-        w = w - lr_test * dw
-        b = b - lr_test * db
-    print(f"lr={lr_test} | perte finale={pertes_t[-1]:.4f} | erreur={taux_t[-1]*100:.2f}%")
+        w = w - lr * dw
+        b = b - lr * db
 
-np.random.seed(0)
-w, b = init()
-lr = 0.1
-n_iter = 1000
-pertes = []
-taux_erreur = []
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].plot(pertes)
+    axes[0].set_xlabel('Itération')
+    axes[0].set_ylabel('NLL')
+    axes[0].set_title(f'Fonction de coût – {n_iter} iter')
+    axes[0].grid()
+    axes[1].plot(taux_erreur)
+    axes[1].set_xlabel('Itération')
+    axes[1].set_ylabel("Taux d'erreur")
+    axes[1].set_title(f"Taux d'erreur – {n_iter} iter")
+    axes[1].grid()
+    plt.tight_layout()
+    plt.show()
 
-for i in range(n_iter):
-    pred = inference(X_n, w, b)
-    pertes.append(objectif(pred, C))
-    taux_erreur.append(np.mean((pred >= 0.5).astype(int) != C))
-    dw, db = gradient_objectif(C, pred, X_n)
-    w = w - lr * dw
-    b = b - lr * db
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-axes[0].plot(pertes)
-axes[0].set_xlabel('Itération')
-axes[0].set_ylabel('NLL')
-axes[0].set_title('Perte – lr=0.1, 1000 iter')
-axes[0].grid()
-axes[1].plot(taux_erreur)
-axes[1].set_xlabel('Itération')
-axes[1].set_ylabel("Taux d'erreur")
-axes[1].set_title('Erreur – lr=0.1, 1000 iter')
-axes[1].grid()
-plt.tight_layout()
-plt.show()
-
-w_orig = w / sigma1.T
-b_orig = float(b) - float(np.dot(w_orig.flatten(), mu1.flatten()))
-plotdata(X, C, w=w_orig.squeeze(), b=b_orig)
-print(f"Perte finale : {pertes[-1]:.4f}, erreur : {taux_erreur[-1]*100:.2f}%")
+    w_orig = w / sigma1.T
+    b_orig = float(b) - float(np.dot(w_orig.flatten(), mu1.flatten()))
+    plotdata(X, C, w=w_orig.squeeze(), b=b_orig)
+    print(f"Perte : {pertes[-1]:.4f} | Erreur : {taux_erreur[-1]*100:.2f}%")
 
 
 # -------------------------------------------------------
@@ -202,14 +149,13 @@ sigma2 = X2.std(axis=1, keepdims=True)
 X2_n = (X2 - mu2) / sigma2
 
 plotdata(X2, C2)
+# les nuages se chevauchent un peu => pas de séparation parfaite possible
 
 np.random.seed(0)
 w, b = init()
-
 lr = 0.01
 n_iter = 500
-pertes = []
-taux_erreur = []
+pertes, taux_erreur = [], []
 
 for i in range(n_iter):
     pred = inference(X2_n, w, b)
@@ -226,7 +172,6 @@ axes[0].set_xlabel('Itération')
 axes[0].set_ylabel('NLL')
 axes[0].set_title('lr=0.01, 500 itérations')
 axes[0].grid()
-
 axes[1].plot(taux_erreur)
 axes[1].set_xlabel('Itération')
 axes[1].set_ylabel("Taux d'erreur")
@@ -241,14 +186,12 @@ w_orig = w / sigma2.T
 b_orig = float(b) - float(np.dot(w_orig.flatten(), mu2.flatten()))
 plotdata(X2, C2, w=w_orig.squeeze(), b=b_orig)
 
-"""
-OBSERVATION (Données 2) :
-- La perte converge correctement grâce à la normalisation
-- Le taux d'erreur se stabilise autour de 7%
-- La frontière de décision linéaire est bien placée
-- Ce taux d'erreur résiduel est normal : les classes se chevauchent
-  légèrement, une droite ne peut pas les séparer parfaitement
-"""
+# OBSERVATION (Données 2) :
+# - La perte converge correctement grâce à la normalisation
+# - Le taux d'erreur se stabilise autour de 7%
+# - La frontière de décision linéaire est bien placée
+# - Ce taux d'erreur résiduel est normal : les classes se chevauchent
+#   légèrement, une droite ne peut pas les séparer parfaitement
 
 fig, axes = plt.subplots(2, 2, figsize=(12, 8))
 
@@ -283,12 +226,9 @@ plt.show()
 
 np.random.seed(0)
 w, b = init()
-
 lr = 0.01
 n_iter = 1000
-pertes = []
-taux_erreur = []
-normes = []
+pertes, taux_erreur, normes = [], [], []
 
 for i in range(n_iter):
     pred = inference(X2_n, w, b)
@@ -305,17 +245,14 @@ axes[0].plot(pertes)
 axes[0].set_title('Perte (lr=0.01, 1000 iter)')
 axes[0].set_xlabel('Itération')
 axes[0].grid()
-
 axes[1].plot(taux_erreur)
 axes[1].set_title("Taux d'erreur")
 axes[1].set_xlabel('Itération')
 axes[1].grid()
-
 axes[2].plot(normes)
 axes[2].set_title('Norme des paramètres')
 axes[2].set_xlabel('Itération')
 axes[2].grid()
-
 plt.tight_layout()
 plt.show()
 
@@ -325,6 +262,11 @@ print(f"Norme finale des paramètres : {normes[-1]:.4f}")
 w_orig = w / sigma2.T
 b_orig = float(b) - float(np.dot(w_orig.flatten(), mu2.flatten()))
 plotdata(X2, C2, w=w_orig.squeeze(), b=b_orig)
+
+# La norme croît sans se stabiliser : sur des données (presque) linéairement
+# séparables, le modèle peut toujours réduire la NLL en augmentant la norme
+# de w (frontière géométriquement identique mais probabilités de plus en
+# plus proches de 0/1). Il n'existe alors pas de minimum fini pour la NLL.
 
 
 # -------------------------------------------------------
@@ -337,18 +279,18 @@ C3 = dataset3["C"]
 print(X3.shape, C3.shape)
 
 plotdata(X3, C3)
-
-np.random.seed(0)
-w, b = init()
+# structure non-linéaire : les classes forment des ensembles concentriques,
+# aucune droite ne peut les séparer
 
 mu3 = X3.mean(axis=1, keepdims=True)
 sigma3 = X3.std(axis=1, keepdims=True)
 X3_n = (X3 - mu3) / sigma3
 
+np.random.seed(0)
+w, b = init()
 lr = 0.01
 n_iter = 1000
-pertes = []
-taux_erreur = []
+pertes, taux_erreur = [], []
 
 for i in range(n_iter):
     pred = inference(X3_n, w, b)
@@ -364,7 +306,6 @@ axes[0].plot(pertes)
 axes[0].set_title('Perte - régression logistique classique')
 axes[0].set_xlabel('Itération')
 axes[0].grid()
-
 axes[1].plot(taux_erreur)
 axes[1].set_title("Taux d'erreur")
 axes[1].set_xlabel('Itération')
@@ -378,66 +319,70 @@ w_orig = w / sigma3.T
 b_orig = float(b) - float(np.dot(w_orig.flatten(), mu3.flatten()))
 plotdata(X3, C3, w=w_orig.squeeze(), b=b_orig)
 
-"""
-OBSERVATION :
-- Le taux d'erreur reste très élevé (~40-50%)
-- La frontière linéaire est incapable de séparer les données
-- La perte ne converge pas vers une valeur satisfaisante
-=> Il FAUT enrichir les features avec des termes non-linéaires !
-"""
+# Le taux d'erreur reste élevé (~17-20%) : une droite ne peut pas séparer
+# ces données => il faut enrichir les features avec des termes non-linéaires.
 
-X3_phi = phi(X3_n)
-print("Shape features étendues:", X3_phi.shape)
+# idée : les classes sont concentriques => la distance au centre est
+# discriminante. On construit phi(x) = [x1-cx, x2-cx, (x1-cx)^2+(x2-cx)^2] ;
+# dans cet espace augmenté, la frontière circulaire devient un hyperplan.
+
+X3_aug = augment_features(X3)
+print("Shape features étendues:", X3_aug.shape)
 
 np.random.seed(0)
-d = X3_phi.shape[0]
-w, b = init_d(d)
-
+w3_aug, b3_aug = init_d(3)
 lr = 0.01
-n_iter = 1000
-pertes = []
-taux_erreur = []
+n_iter = 10000
+pertes, taux_erreur, normes = [], [], []
 
 for i in range(n_iter):
-    pred = inference(X3_phi, w, b)
+    pred = inference(X3_aug, w3_aug, b3_aug)
     pertes.append(objectif(pred, C3))
-    pred_classe = (pred >= 0.5).astype(int)
-    taux_erreur.append(np.mean(pred_classe != C3))
-    dw, db = gradient_objectif(C3, pred, X3_phi)
-    w = w - lr * dw
-    b = b - lr * db
+    taux_erreur.append(np.mean((pred >= 0.5).astype(int) != C3))
+    normes.append(np.sqrt(b3_aug**2 + np.sum(w3_aug**2)))
+    dw, db = gradient_objectif(C3, pred, X3_aug)
+    w3_aug = w3_aug - lr * dw
+    b3_aug = b3_aug - lr * db
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
 axes[0].plot(pertes)
-axes[0].set_title('Perte - features enrichies')
+axes[0].set_title('Perte - espace augmenté')
 axes[0].set_xlabel('Itération')
 axes[0].grid()
-
 axes[1].plot(taux_erreur)
 axes[1].set_title("Taux d'erreur")
 axes[1].set_xlabel('Itération')
 axes[1].grid()
+axes[2].plot(normes)
+axes[2].set_title('Norme des paramètres')
+axes[2].set_xlabel('Itération')
+axes[2].grid()
 plt.tight_layout()
 plt.show()
 
-print(f"Perte finale : {pertes[-1]:.4f}, Taux d'erreur : {taux_erreur[-1]*100:.2f}%")
+print(f"Perte finale : {pertes[-1]:.4f} | Erreur : {taux_erreur[-1]*100:.2f}%")
 
-xx, yy = np.meshgrid(np.linspace(X3[0].min() - 1, X3[0].max() + 1, 300),
-                      np.linspace(X3[1].min() - 1, X3[1].max() + 1, 300))
-grid = np.vstack([xx.ravel(), yy.ravel()])
-grid_n = (grid - mu3) / sigma3
-grid_phi = phi(grid_n)
-prob_grid = inference(grid_phi, w, b).reshape(xx.shape)
+MIN, MAX = 0, 20
+x1g, x2g = np.meshgrid(np.linspace(MIN, MAX, 200), np.linspace(MIN, MAX, 200))
+X_grid = np.vstack([x1g.ravel(), x2g.ravel()])
+X_grid_aug = augment_features(X_grid)
+preds_grid = inference(X_grid_aug, w3_aug, b3_aug).reshape(200, 200)
 
-plt.figure(figsize=(6, 5))
-plt.contourf(xx, yy, prob_grid, levels=50, cmap='RdYlGn', alpha=0.6)
-plt.contour(xx, yy, prob_grid, levels=[0.5], colors='blue', linewidths=2)
 pos = (C3 == 1).squeeze()
 neg = (C3 == 0).squeeze()
+
+plt.contourf(x1g, x2g, preds_grid, levels=[0, 0.5, 1], colors=['#ffcccc', '#ccffcc'])
+plt.contour(x1g, x2g, preds_grid, levels=[0.5], colors='blue', linewidths=2)
 plt.plot(X3[0, pos], X3[1, pos], 'g+', label='Classe 1')
 plt.plot(X3[0, neg], X3[1, neg], 'r+', label='Classe 0')
-plt.colorbar(label='P(c=1|x)')
-plt.title('Frontière de décision – espace enrichi')
+plt.xlim(MIN, MAX)
+plt.ylim(MIN, MAX)
 plt.legend()
+plt.title('Frontière de décision non linéaire – espace augmenté')
 plt.grid()
 plt.show()
+
+# L'enrichissement de la représentation transforme le problème : dans
+# l'espace augmenté, la régression logistique apprend un hyperplan qui
+# correspond à une frontière circulaire dans l'espace original. Le taux
+# d'erreur tombe sous les 5% contre ~17-20% pour le modèle linéaire.
